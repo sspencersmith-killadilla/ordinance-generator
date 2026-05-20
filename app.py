@@ -69,7 +69,7 @@ with tab1:
                 [Generate appropriate SECTIONS here]
                 """
                 
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                model = genai.GenerativeModel('gemini-2.5-flash')
                 response = model.generate_content(prompt)
                 generated_text = response.text
                 
