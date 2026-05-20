@@ -33,7 +33,7 @@ with st.form("ordinance_form"):
     substance = st.text_area("Core Substance / Policy Change", placeholder="Describe exactly what changes. Include fee amounts, effective dates, or specific code chapters being modified.")
     fiscal_impact = st.text_input("Fiscal Impact / Funding Source", placeholder="e.g., Net positive revenue of $5,000 annually to General Fund")
     
-    submitted = st.form_submit_with_button("Generate Draft Ordinance")
+    submitted = st.form_submit_button("Generate Draft Ordinance")
 
 if submitted:
     if not substance or not item_title:
