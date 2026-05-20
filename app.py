@@ -1,5 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
+from docx import Document
+import io
 
 st.set_page_config(page_title="Municipal Ordinance Generator", layout="centered")
 
@@ -11,6 +13,18 @@ try:
 except KeyError:
     st.error("API Key not found. Please set GEMINI_API_KEY in your Streamlit secrets.")
     st.stop()
+
+# --- Helper function to create the Word Doc in memory ---
+def create_word_docx(text_content):
+    doc = Document()
+    # You can customize the font/style here if needed, but this is the default
+    doc.add_paragraph(text_content)
+    
+    # Save the document to an in-memory byte buffer instead of a physical file
+    file_stream = io.BytesIO()
+    doc.save(file_stream)
+    file_stream.seek(0)
+    return file_stream
 
 with st.form("ordinance_form"):
     city_name = st.text_input("City Name", value="McKinney")
@@ -47,6 +61,20 @@ if submitted:
             
             model = genai.GenerativeModel('gemini-1.5-flash')
             response = model.generate_content(prompt)
+            generated_text = response.text
             
             st.subheader("Generated Draft")
-            st.text_area("Review and Edit Draft", value=response.text, height=400)
+            st.text_area("Review and Edit Draft", value=generated_text, height=400)
+            
+            # --- New Download Button Logic ---
+            word_file = create_word_docx(generated_text)
+            
+            # Format a clean file name based on the department
+            safe_filename = f"Draft_Ordinance_{department.replace(' ', '_')}.docx"
+            
+            st.download_button(
+                label="📥 Download as Word Document (.docx)",
+                data=word_file,
+                file_name=safe_filename,
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
