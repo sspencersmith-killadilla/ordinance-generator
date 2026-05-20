@@ -12,7 +12,11 @@ st.set_page_config(page_title="Municipal Ordinance Generator", layout="wide", pa
 # --- Helper function: download and crop image for a wide banner ---
 def get_cropped_banner(url):
     try:
-        response = requests.get(url, stream=True)
+        # Add a User-Agent header to bypass basic 403 Forbidden bot-protection
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        response = requests.get(url, stream=True, headers=headers)
         response.raise_for_status()
         img = Image.open(response.raw)
         
@@ -246,7 +250,7 @@ with tab2:
         
         # Display saved history iteratively
         for idx, item in enumerate(st.session_state.history):
-            # This label structure matches 'Library System - 2026-05-20 23:46:38' in image reference
+            # This label structure matches 'Library System - 2026-05-20 23:46:38'
             expander_title = f"📄 {item['title']} ({item['department']} - {item['timestamp']})"
             
             # The CSS will restyle this expander into a professional card structure
@@ -273,5 +277,5 @@ with tab2:
                 
                 with col2:
                     st.markdown("**Generated Text:**")
-                    # Display the full text in a disabled, large text area that matches the layout vibe
+                    # Display the full text in a disabled text area
                     st.text_area("Ordinance Text", value=item['text'], height=450, key=f"text_{idx}", disabled=True)
