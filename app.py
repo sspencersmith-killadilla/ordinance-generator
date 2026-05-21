@@ -49,11 +49,6 @@ def set_custom_css():
             --municipal-text: #2c3e50;
         }
 
-        /* Generic sans-serif font applied everywhere */
-        * {
-            font-family: sans-serif !important;
-        }
-
         /* Safer Tab Styling - Targets the button element directly */
         button[data-baseweb="tab"] {
             font-size: 1rem !important;
@@ -89,24 +84,23 @@ def set_custom_css():
             border-bottom: 2px solid var(--municipal-border);
         }
         
-        /* Safely target the text without breaking the flexbox arrow */
-        [data-testid="stExpander"] summary p, 
-        [data-testid="stExpander"] summary span {
+        /* Safely target ONLY the paragraph text to prevent icon overriding */
+        [data-testid="stExpander"] summary p {
             color: white !important;
             font-weight: 700 !important;
             font-size: 1.1rem !important;
+            margin-bottom: 0 !important;
         }
         
-        /* Force the dropdown arrow to be white */
+        /* Ensure the dropdown arrow inherits white without breaking its font class */
         [data-testid="stExpander"] summary svg {
             fill: white !important;
             color: white !important;
         }
 
         /* Style standard st.write and list items to be cleaner and spaced better */
-        [data-testid="stExpander"] st.write {
+        [data-testid="stExpander"] div[data-testid="stMarkdownContainer"] p {
             color: var(--municipal-text);
-            margin-bottom: 5px;
         }
 
         /* Professional style for primary buttons */
@@ -240,7 +234,7 @@ with tab1:
 # TAB 2: DASHBOARD
 # ==========================================
 with tab2:
-    st.markdown("### Ordinance History & Review")
+    st.markdown("### Ordinance History & Review - Dashboard")
     
     if len(st.session_state.history) == 0:
         st.info("No ordinances generated yet. Please navigate to the 'Draft New Ordinance' tab to get started.")
@@ -250,14 +244,17 @@ with tab2:
         
         # Display saved history iteratively
         for idx, item in enumerate(st.session_state.history):
+            # This label structure matches 'Library System - 2026-05-20 23:46:38'
             expander_title = f"📄 {item['title']} ({item['department']} - {item['timestamp']})"
             
+            # The CSS will restyle this expander into a professional card structure
             with st.expander(expander_title, expanded=(idx==0)):
                 # Use columns for metadata and full text detail review
                 col1, col2 = st.columns([1, 2])
                 
                 with col1:
                     st.markdown("**Metadata:**")
+                    # Clean markdown list spacing
                     st.markdown(f"* **Town:** {item['city']}")
                     st.markdown(f"* **Dept:** {item['department']}")
                     st.markdown(f"* **Fiscal Impact:** {item['fiscal']}")
@@ -269,7 +266,7 @@ with tab2:
                         data=word_file,
                         file_name=f"Draft_{item['department'].replace(' ', '_')}.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        key=f"dl_btn_{idx}" 
+                        key=f"dl_btn_{idx}" # Keys must be unique for loops
                     )
                 
                 with col2:
