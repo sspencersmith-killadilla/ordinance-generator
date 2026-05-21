@@ -12,7 +12,6 @@ st.set_page_config(page_title="Municipal Ordinance Generator", layout="wide", pa
 # --- Helper function: download and crop image for a wide banner ---
 def get_cropped_banner(url):
     try:
-        # Add a User-Agent header to bypass basic 403 Forbidden bot-protection
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
@@ -20,14 +19,11 @@ def get_cropped_banner(url):
         response.raise_for_status()
         img = Image.open(response.raw)
         
-        # Define crop area (left, top, right, bottom)
-        # We will crop a 300px strip from the top of the image
         width, height = img.size
         banner_height = 300
         crop_box = (0, 0, width, banner_height)
         cropped_img = img.crop(crop_box)
         
-        # Convert back to bytes for st.image
         img_byte_arr = io.BytesIO()
         cropped_img.save(img_byte_arr, format=img.format)
         img_byte_arr.seek(0)
@@ -36,11 +32,10 @@ def get_cropped_banner(url):
         st.error(f"Error loading banner image: {str(e)}")
         return None
 
-# --- Custom CSS to match McKinney reference aesthetic safely ---
+# --- Custom CSS to match McKinney reference aesthetic ---
 def set_custom_css():
     st.markdown("""
         <style>
-        /* Define precise municipal teal color palette */
         :root {
             --municipal-primary: #166a84;
             --municipal-primary-dark: #0f4b5e;
@@ -49,7 +44,9 @@ def set_custom_css():
             --municipal-text: #2c3e50;
         }
 
-        /* Safer Tab Styling - Targets the button element directly */
+        * { font-family: sans-serif !important; }
+
+        /* Tab Styling */
         button[data-baseweb="tab"] {
             font-size: 1rem !important;
             font-weight: 700 !important;
@@ -68,39 +65,37 @@ def set_custom_css():
             border: 1px solid var(--municipal-primary) !important;
         }
 
-        /* Fix the Expander Card Layout */
+        /* Style the native Streamlit containers to look like Dashboard Cards */
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            border: 2px solid var(--municipal-border) !important;
+            border-radius: 8px !important;
+            background-color: white !important;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 15px;
+            padding: 5px;
+        }
+
+        /* Adjust the Expander used for the full text */
         [data-testid="stExpander"] {
-            border: 2px solid var(--municipal-primary);
-            border-radius: 8px;
+            border: 1px solid var(--municipal-primary);
+            border-radius: 6px;
             background-color: white;
             overflow: hidden;
-            margin-bottom: 20px;
+            margin-top: 10px;
         }
-        
-        /* Safely color the header background */
         [data-testid="stExpander"] summary {
             background-color: var(--municipal-primary) !important;
-            padding: 10px 15px !important;
-            border-bottom: 2px solid var(--municipal-border);
+            padding: 8px 15px !important;
         }
-        
-        /* Safely target ONLY the paragraph text to prevent icon overriding */
         [data-testid="stExpander"] summary p {
             color: white !important;
-            font-weight: 700 !important;
-            font-size: 1.1rem !important;
+            font-weight: 600 !important;
+            font-size: 1rem !important;
             margin-bottom: 0 !important;
         }
-        
-        /* Ensure the dropdown arrow inherits white without breaking its font class */
         [data-testid="stExpander"] summary svg {
             fill: white !important;
             color: white !important;
-        }
-
-        /* Style standard st.write and list items to be cleaner and spaced better */
-        [data-testid="stExpander"] div[data-testid="stMarkdownContainer"] p {
-            color: var(--municipal-text);
         }
 
         /* Professional style for primary buttons */
@@ -113,28 +108,26 @@ def set_custom_css():
             font-weight: 600 !important;
             text-transform: uppercase;
             transition: background-color 0.3s ease !important;
+            width: 100%;
         }
         .stButton>button:hover {
             background-color: var(--municipal-primary-dark) !important;
         }
         
-        /* Ensure st.info blocks use a consistent professional style */
+        /* Ensure st.info blocks use a consistent professional style for Key Info */
         [data-testid="stAlert"] {
             background-color: var(--municipal-secondary);
-            color: var(--municipal-primary);
-            border: 1px solid var(--municipal-primary);
+            color: var(--municipal-text);
+            border: 1px solid var(--municipal-border);
             border-radius: 5px;
             font-weight: 500;
+            padding: 12px !important;
         }
         
-        /* General page titles use the primary teal color */
-        h1 {
-            color: var(--municipal-primary);
-        }
+        h1, h3, h4 { color: var(--municipal-primary); }
         </style>
     """, unsafe_allow_html=True)
 
-# Define Word doc creation function
 def create_word_docx(text_content):
     doc = Document()
     doc.add_paragraph(text_content)
@@ -149,14 +142,13 @@ set_custom_css()
 # --- Display the Cropped Banner Image ---
 banner_image_bytes = get_cropped_banner("https://www.vmcdn.ca/f/files/localprofile/images/news/mckinneytexascityhall12257-42.jpg;w=960")
 if banner_image_bytes:
-    st.image(banner_image_bytes, use_container_width=True) # Full width banner
+    st.image(banner_image_bytes, use_container_width=True) 
 st.title("Ordinance Generator & Dashboard - McKinney, Texas")
 
 # Initialize memory (Session State)
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# Configure API key securely
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 except KeyError:
@@ -207,16 +199,16 @@ with tab1:
                 response = model.generate_content(prompt)
                 generated_text = response.text
                 
-                # --- Save to History ---
+                # --- Save to History (Now including Substance!) ---
                 record = {
                     "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "city": city_name,
                     "department": department,
                     "title": item_title,
+                    "substance": substance, # Saved for the dashboard
                     "fiscal": fiscal_impact,
                     "text": generated_text
                 }
-                # Add the new record to the beginning of the list
                 st.session_state.history.insert(0, record)
                 
                 st.success(f"Draft created successfully for {city_name}! View it below or switch to the Dashboard tab.")
@@ -234,7 +226,7 @@ with tab1:
 # TAB 2: DASHBOARD
 # ==========================================
 with tab2:
-    st.markdown("### Ordinance History & Review - Dashboard")
+    st.markdown("### Ordinance History & Review")
     
     if len(st.session_state.history) == 0:
         st.info("No ordinances generated yet. Please navigate to the 'Draft New Ordinance' tab to get started.")
@@ -242,34 +234,38 @@ with tab2:
         st.write(f"**Total Drafts in Session:** {len(st.session_state.history)}")
         st.divider()
         
-        # Display saved history iteratively
         for idx, item in enumerate(st.session_state.history):
-            # This label structure matches 'Library System - 2026-05-20 23:46:38'
-            expander_title = f"📄 {item['title']} ({item['department']} - {item['timestamp']})"
-            
-            # The CSS will restyle this expander into a professional card structure
-            with st.expander(expander_title, expanded=(idx==0)):
-                # Use columns for metadata and full text detail review
-                col1, col2 = st.columns([1, 2])
+            # Wrap each ordinance in a clean Dashboard Card (border container)
+            with st.container(border=True):
+                st.markdown(f"#### 📄 {item['title']}")
                 
-                with col1:
-                    st.markdown("**Metadata:**")
-                    # Clean markdown list spacing
-                    st.markdown(f"* **Town:** {item['city']}")
-                    st.markdown(f"* **Dept:** {item['department']}")
-                    st.markdown(f"* **Fiscal Impact:** {item['fiscal']}")
-                    st.markdown(f"* **Generated:** {item['timestamp']}")
-                    
+                # --- KEY INFO AT A GLANCE ---
+                st.markdown("**Key Info:**")
+                col1, col2, col3 = st.columns(3)
+                col1.info(f"**🏢 Town & Dept:**<br>{item['city']} — {item['department']}")
+                col2.info(f"**💰 Fiscal Impact:**<br>{item['fiscal']}")
+                col3.info(f"**🕒 Generated:**<br>{item['timestamp']}")
+                
+                # --- CORE SUBSTANCE VISIBLE IMMEDIATELY ---
+                st.markdown("**Core Substance:**")
+                # Use .get() in case older entries in the session state didn't have substance saved
+                st.write(item.get('substance', 'No substance details recorded.'))
+                
+                st.markdown("<br>", unsafe_allow_html=True) # Spacer
+                
+                # --- FULL TEXT EXPANDER AND DOWNLOAD ROW ---
+                exp_col, dl_col = st.columns([4, 1])
+                
+                with exp_col:
+                    with st.expander("🔍 View Full Ordinance Draft"):
+                        st.text_area("Ordinance Text", value=item['text'], height=350, key=f"text_{idx}", label_visibility="collapsed", disabled=True)
+                
+                with dl_col:
                     word_file = create_word_docx(item['text'])
                     st.download_button(
-                        label="📥 Download (.docx)",
+                        label="📥 Download Docx",
                         data=word_file,
                         file_name=f"Draft_{item['department'].replace(' ', '_')}.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        key=f"dl_btn_{idx}" # Keys must be unique for loops
+                        key=f"dl_btn_{idx}"
                     )
-                
-                with col2:
-                    st.markdown("**Generated Text:**")
-                    # Display the full text in a disabled text area
-                    st.text_area("Ordinance Text", value=item['text'], height=450, key=f"text_{idx}", disabled=True)
