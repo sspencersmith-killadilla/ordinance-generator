@@ -5,11 +5,13 @@ import io
 import datetime
 from PIL import Image
 import requests
+import PyPDF2
+import json
 
 # Set page config at the very beginning
-st.set_page_config(page_title="Municipal Ordinance Generator", layout="wide", page_icon="🏛️")
+st.set_page_config(page_title="Municipal Ordinance Portal", layout="wide", page_icon="🏛️")
 
-# --- Helper function: download and crop image for a wide banner ---
+# --- Helper functions ---
 def get_cropped_banner(url):
     try:
         headers = {
@@ -32,7 +34,22 @@ def get_cropped_banner(url):
         st.error(f"Error loading banner image: {str(e)}")
         return None
 
-# --- Custom CSS to match McKinney reference aesthetic ---
+def extract_text_from_pdf(uploaded_file):
+    reader = PyPDF2.PdfReader(uploaded_file)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() + "\n"
+    return text
+
+def create_word_docx(text_content):
+    doc = Document()
+    doc.add_paragraph(text_content)
+    file_stream = io.BytesIO()
+    doc.save(file_stream)
+    file_stream.seek(0)
+    return file_stream
+
+# --- Custom CSS ---
 def set_custom_css():
     st.markdown("""
         <style>
@@ -65,7 +82,7 @@ def set_custom_css():
             border: 1px solid var(--municipal-primary) !important;
         }
 
-        /* Style the native Streamlit containers to look like Dashboard Cards */
+        /* Dashboard Cards */
         [data-testid="stVerticalBlockBorderWrapper"] {
             border: 2px solid var(--municipal-border) !important;
             border-radius: 8px !important;
@@ -75,7 +92,7 @@ def set_custom_css():
             padding: 5px;
         }
 
-        /* Adjust the Expander used for the full text */
+        /* Expander */
         [data-testid="stExpander"] {
             border: 1px solid var(--municipal-primary);
             border-radius: 6px;
@@ -98,7 +115,7 @@ def set_custom_css():
             color: white !important;
         }
 
-        /* Professional style for primary buttons */
+        /* Buttons */
         .stButton>button {
             background-color: var(--municipal-primary) !important;
             color: white !important;
@@ -114,7 +131,7 @@ def set_custom_css():
             background-color: var(--municipal-primary-dark) !important;
         }
         
-        /* Ensure st.info blocks use a consistent professional style for Key Info */
+        /* Info Blocks */
         [data-testid="stAlert"] {
             background-color: var(--municipal-secondary);
             color: var(--municipal-text);
@@ -128,41 +145,32 @@ def set_custom_css():
         </style>
     """, unsafe_allow_html=True)
 
-def create_word_docx(text_content):
-    doc = Document()
-    doc.add_paragraph(text_content)
-    file_stream = io.BytesIO()
-    doc.save(file_stream)
-    file_stream.seek(0)
-    return file_stream
-
-# --- Apply Custom Aesthetics ---
+# Apply CSS & Header
 set_custom_css()
-
-# --- Display the Cropped Banner Image ---
 banner_image_bytes = get_cropped_banner("https://www.vmcdn.ca/f/files/localprofile/images/news/mckinneytexascityhall12257-42.jpg;w=960")
 if banner_image_bytes:
     st.image(banner_image_bytes, use_container_width=True) 
-st.title("Ordinance Generator & Dashboard - McKinney, Texas")
+st.title("Municipal Ordinance Portal - McKinney, Texas")
 
-# Initialize memory (Session State)
+# Init Memory
 if 'history' not in st.session_state:
     st.session_state.history = []
 
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    model = genai.GenerativeModel('gemini-2.5-flash')
 except KeyError:
     st.error("API Key not found. Please set GEMINI_API_KEY in your Streamlit secrets.")
     st.stop()
 
-# --- Create Professional Style Tabs ---
-tab1, tab2 = st.tabs(["📝 Draft New Ordinance", "📊 Ordinance Dashboard"])
+# --- Navigation ---
+tab1, tab2, tab3 = st.tabs(["📝 Draft New Ordinance", "🔍 Analyze Document", "📊 Ordinance Dashboard"])
 
 # ==========================================
-# TAB 1: GENERATOR
+# TAB 1: GENERATE FROM SCRATCH
 # ==========================================
 with tab1:
-    st.markdown("### Create a New Draft")
+    st.markdown("### Draft a New Ordinance")
     with st.form("ordinance_form"):
         city_name = st.text_input("Town Name", value="McKinney")
         department = st.selectbox("Sponsoring Department", ["Planning & Zoning", "Public Works", "Finance", "Parks & Rec", "Economic Development", "Town Manager's Office"])
@@ -176,96 +184,124 @@ with tab1:
         if not substance or not item_title:
             st.error("Please fill out the Title and Core Substance fields.")
         else:
-            with st.spinner(f"Drafting formal town ordinance for the Town of {city_name} based on municipal template..."):
+            with st.spinner("Drafting formal town ordinance..."):
                 prompt = f"""
                 You are a municipal legal assistant for the Town of {city_name}, Texas. Draft a formal town ordinance based on the following structured inputs. Maintain standard Texas municipal legal boilerplate (severability, repealer, effective date).
-
                 INPUTS:
                 - Town: {city_name}
                 - Department: {department}
                 - Title: {item_title}
                 - Substance: {substance}
                 - Fiscal Notes: {fiscal_impact}
-
-                TEMPLATE TO FOLLOW:
-                ORDINANCE NO. ______
-                AN ORDINANCE OF THE TOWN OF {city_name.upper()}, TEXAS, AMENDING THE CODE OF ORDINANCES BY {item_title.upper()}; PROVIDING A REPEALER CLAUSE; PROVIDING A SEVERABILITY CLAUSE; AND PROVIDING AN EFFECTIVE DATE.
-                
-                BE IT ORDAINED BY THE TOWN COUNCIL OF THE TOWN OF {city_name.upper()}, TEXAS:
-                [Generate appropriate SECTIONS here]
                 """
-                
-                model = genai.GenerativeModel('gemini-2.5-flash')
                 response = model.generate_content(prompt)
-                generated_text = response.text
                 
-                # --- Save to History (Now including Substance!) ---
                 record = {
+                    "type": "Generated",
                     "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "city": city_name,
                     "department": department,
                     "title": item_title,
-                    "substance": substance, # Saved for the dashboard
+                    "summary_or_substance": substance,
                     "fiscal": fiscal_impact,
-                    "text": generated_text
+                    "text": response.text
                 }
                 st.session_state.history.insert(0, record)
-                
-                st.success(f"Draft created successfully for {city_name}! View it below or switch to the Dashboard tab.")
-                
-                st.text_area("Review Draft", value=generated_text, height=300)
-                word_file = create_word_docx(generated_text)
-                st.download_button(
-                    label=f"📥 Download Draft as Word Document (.docx)",
-                    data=word_file,
-                    file_name=f"Draft_Ordinance_{department.replace(' ', '_')}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
+                st.success("Draft created successfully! Switch to the Dashboard to view.")
 
 # ==========================================
-# TAB 2: DASHBOARD
+# TAB 2: ANALYZE UPLOADED PDF
 # ==========================================
 with tab2:
-    st.markdown("### Ordinance History & Review")
+    st.markdown("### Translate Legalese to Plain English")
+    st.write("Upload a draft ordinance or resolution (PDF) to generate a summary, identify the department, and extract costs.")
+    
+    uploaded_file = st.file_uploader("Upload Document (.pdf)", type="pdf")
+    
+    if uploaded_file is not None:
+        if st.button("Analyze Document"):
+            with st.spinner("Reading and analyzing document..."):
+                try:
+                    document_text = extract_text_from_pdf(uploaded_file)
+                    
+                    prompt = f"""
+                    You are an expert municipal analyst. Read the following text extracted from a municipal document.
+                    Extract the following information and return it STRICTLY as a JSON object with these keys:
+                    - "title": A short, 3-6 word title based on the document's subject.
+                    - "summary": A clear, plain language summary of what this document actually does (under 4 sentences).
+                    - "department": The specific city department bringing or sponsoring the item. If not explicitly stated, infer based on content or return "Not specified".
+                    - "costs": The financial impact, budget, or costs associated. If none are mentioned, state "No fiscal impact mentioned."
+
+                    Document Text:
+                    {document_text}
+                    """
+                    
+                    # Force Gemini to return JSON
+                    response = model.generate_content(
+                        prompt,
+                        generation_config={"response_mime_type": "application/json"}
+                    )
+                    
+                    result_data = json.loads(response.text)
+                    
+                    record = {
+                        "type": "Analyzed",
+                        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "city": "McKinney (Inferred)",
+                        "department": result_data.get("department", "Unknown"),
+                        "title": result_data.get("title", uploaded_file.name),
+                        "summary_or_substance": result_data.get("summary", "No summary generated."),
+                        "fiscal": result_data.get("costs", "Unknown"),
+                        "text": document_text # Save the extracted text
+                    }
+                    st.session_state.history.insert(0, record)
+                    st.success("Document analyzed! Switch to the Dashboard to view the breakdown.")
+                except Exception as e:
+                    st.error(f"Error analyzing document: {str(e)}")
+
+# ==========================================
+# TAB 3: DASHBOARD
+# ==========================================
+with tab3:
+    st.markdown("### Ordinance Dashboard")
     
     if len(st.session_state.history) == 0:
-        st.info("No ordinances generated yet. Please navigate to the 'Draft New Ordinance' tab to get started.")
+        st.info("No activity yet. Go to 'Draft New Ordinance' or 'Analyze Document' to begin.")
     else:
-        st.write(f"**Total Drafts in Session:** {len(st.session_state.history)}")
-        st.divider()
+        st.write(f"**Total Records:** {len(st.session_state.history)}")
         
         for idx, item in enumerate(st.session_state.history):
-            # Wrap each ordinance in a clean Dashboard Card (border container)
             with st.container(border=True):
-                st.markdown(f"#### 📄 {item['title']}")
+                # Indicate if it was generated by the AI or analyzed from an upload
+                icon = "✨ Generated" if item['type'] == "Generated" else "🔍 Analyzed"
+                st.markdown(f"#### {icon}: {item['title']}")
                 
-                # --- KEY INFO AT A GLANCE ---
                 st.markdown("**Key Info:**")
                 col1, col2, col3 = st.columns(3)
-                col1.info(f"**🏢 Town & Dept:**<br>{item['city']} — {item['department']}")
+                col1.info(f"**🏢 Dept:**<br>{item['department']}")
                 col2.info(f"**💰 Fiscal Impact:**<br>{item['fiscal']}")
-                col3.info(f"**🕒 Generated:**<br>{item['timestamp']}")
+                col3.info(f"**🕒 Time:**<br>{item['timestamp']}")
                 
-                # --- CORE SUBSTANCE VISIBLE IMMEDIATELY ---
-                st.markdown("**Core Substance:**")
-                # Use .get() in case older entries in the session state didn't have substance saved
-                st.write(item.get('substance', 'No substance details recorded.'))
+                # Change the label based on what it is
+                substance_label = "Core Substance:" if item['type'] == "Generated" else "Plain English Summary:"
+                st.markdown(f"**{substance_label}**")
+                st.write(item['summary_or_substance'])
                 
-                st.markdown("<br>", unsafe_allow_html=True) # Spacer
+                st.markdown("<br>", unsafe_allow_html=True)
                 
-                # --- FULL TEXT EXPANDER AND DOWNLOAD ROW ---
                 exp_col, dl_col = st.columns([4, 1])
-                
                 with exp_col:
-                    with st.expander("🔍 View Full Ordinance Draft"):
-                        st.text_area("Ordinance Text", value=item['text'], height=350, key=f"text_{idx}", label_visibility="collapsed", disabled=True)
+                    exp_label = "🔍 View Full Draft" if item['type'] == "Generated" else "🔍 View Extracted Text"
+                    with st.expander(exp_label):
+                        st.text_area("Full Text", value=item['text'], height=350, key=f"text_{idx}", label_visibility="collapsed", disabled=True)
                 
                 with dl_col:
-                    word_file = create_word_docx(item['text'])
-                    st.download_button(
-                        label="📥 Download Docx",
-                        data=word_file,
-                        file_name=f"Draft_{item['department'].replace(' ', '_')}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        key=f"dl_btn_{idx}"
-                    )
+                    if item['type'] == "Generated":
+                        word_file = create_word_docx(item['text'])
+                        st.download_button(
+                            label="📥 Download Docx",
+                            data=word_file,
+                            file_name=f"Draft_{item['department'].replace(' ', '_')}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key=f"dl_btn_{idx}"
+                        )
