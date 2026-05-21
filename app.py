@@ -36,11 +36,11 @@ def get_cropped_banner(url):
         st.error(f"Error loading banner image: {str(e)}")
         return None
 
-# --- Custom CSS to match McKinney reference aesthetic ---
+# --- Custom CSS to match McKinney reference aesthetic safely ---
 def set_custom_css():
     st.markdown("""
         <style>
-        /* Define precise municipal teal color palette from reference image */
+        /* Define precise municipal teal color palette */
         :root {
             --municipal-primary: #166a84;
             --municipal-primary-dark: #0f4b5e;
@@ -54,61 +54,61 @@ def set_custom_css():
             font-family: sans-serif !important;
         }
 
-        /* Style the Tabs to look like the solid, blocky navigation segments */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 12px;
-            border-bottom: 3px solid var(--municipal-primary);
-        }
-        .stTabs [data-baseweb="tab"] {
-            background-color: var(--municipal-primary);
-            color: white !important;
-            border-radius: 6px 6px 0px 0px;
-            padding: 15px 30px;
-            font-weight: 700;
-            font-size: 1.1rem;
-            transition: background-color 0.3s ease;
+        /* Safer Tab Styling - Targets the button element directly */
+        button[data-baseweb="tab"] {
+            font-size: 1rem !important;
+            font-weight: 700 !important;
+            background-color: var(--municipal-secondary) !important;
+            color: var(--municipal-primary) !important;
+            border-radius: 5px 5px 0 0 !important;
+            padding: 10px 24px !important;
+            margin-right: 4px !important;
+            border: 1px solid var(--municipal-border) !important;
+            border-bottom: none !important;
             text-transform: uppercase;
         }
-        .stTabs [data-baseweb="tab"]:hover {
-            background-color: var(--municipal-primary-dark);
-        }
-        .stTabs [aria-selected="true"] {
-            background-color: var(--municipal-primary-dark);
+        button[data-baseweb="tab"][aria-selected="true"] {
+            background-color: var(--municipal-primary) !important;
+            color: white !important;
+            border: 1px solid var(--municipal-primary) !important;
         }
 
-        /* Style the Dashboard Expanders to look like professional cards */
+        /* Fix the Expander Card Layout */
         [data-testid="stExpander"] {
-            border: 2px solid var(--municipal-border);
+            border: 2px solid var(--municipal-primary);
             border-radius: 8px;
+            background-color: white;
             overflow: hidden;
             margin-bottom: 20px;
-            background-color: white;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }
         
-        /* The summary header of the expander card */
+        /* Safely color the header background */
         [data-testid="stExpander"] summary {
-            background-color: var(--municipal-primary);
-            color: white;
-            padding: 12px;
+            background-color: var(--municipal-primary) !important;
+            padding: 10px 15px !important;
             border-bottom: 2px solid var(--municipal-border);
         }
         
-        /* Force the text inside the expander header to be white, bold, and larger */
-        [data-testid="stExpander"] summary p {
+        /* Safely target the text without breaking the flexbox arrow */
+        [data-testid="stExpander"] summary p, 
+        [data-testid="stExpander"] summary span {
             color: white !important;
-            font-size: 1.2rem;
-            font-weight: 700;
-            margin: 0;
-            text-transform: none; 
+            font-weight: 700 !important;
+            font-size: 1.1rem !important;
         }
         
+        /* Force the dropdown arrow to be white */
+        [data-testid="stExpander"] summary svg {
+            fill: white !important;
+            color: white !important;
+        }
+
         /* Style standard st.write and list items to be cleaner and spaced better */
         [data-testid="stExpander"] st.write {
             color: var(--municipal-text);
             margin-bottom: 5px;
         }
-        
+
         /* Professional style for primary buttons */
         .stButton>button {
             background-color: var(--municipal-primary) !important;
@@ -117,8 +117,8 @@ def set_custom_css():
             border: none !important;
             padding: 10px 20px !important;
             font-weight: 600 !important;
-            transition: background-color 0.3s ease !important;
             text-transform: uppercase;
+            transition: background-color 0.3s ease !important;
         }
         .stButton>button:hover {
             background-color: var(--municipal-primary-dark) !important;
@@ -240,7 +240,7 @@ with tab1:
 # TAB 2: DASHBOARD
 # ==========================================
 with tab2:
-    st.markdown("### Ordinance History & Review - Dashboard")
+    st.markdown("### Ordinance History & Review")
     
     if len(st.session_state.history) == 0:
         st.info("No ordinances generated yet. Please navigate to the 'Draft New Ordinance' tab to get started.")
@@ -250,17 +250,14 @@ with tab2:
         
         # Display saved history iteratively
         for idx, item in enumerate(st.session_state.history):
-            # This label structure matches 'Library System - 2026-05-20 23:46:38'
             expander_title = f"📄 {item['title']} ({item['department']} - {item['timestamp']})"
             
-            # The CSS will restyle this expander into a professional card structure
             with st.expander(expander_title, expanded=(idx==0)):
                 # Use columns for metadata and full text detail review
                 col1, col2 = st.columns([1, 2])
                 
                 with col1:
                     st.markdown("**Metadata:**")
-                    # Clean markdown list spacing
                     st.markdown(f"* **Town:** {item['city']}")
                     st.markdown(f"* **Dept:** {item['department']}")
                     st.markdown(f"* **Fiscal Impact:** {item['fiscal']}")
@@ -272,7 +269,7 @@ with tab2:
                         data=word_file,
                         file_name=f"Draft_{item['department'].replace(' ', '_')}.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        key=f"dl_btn_{idx}" # Keys must be unique for loops
+                        key=f"dl_btn_{idx}" 
                     )
                 
                 with col2:
